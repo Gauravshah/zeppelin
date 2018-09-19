@@ -196,12 +196,14 @@ When Zeppelin server is running with authentication enabled, then this interpret
 
 
 ## Apply Zeppelin Dynamic Forms
-You can leverage [Zeppelin Dynamic Form](../manual/dynamicform.html). You can use both the `text input` and `select form` parameterization features.
+You can leverage [Zeppelin Dynamic Form](../usage/dynamic_form/intro.html). Form templates is only avalible for livy sql interpreter.
 
 ```
-%livy.pyspark
-print "${group_by=product_id,product_id|product_name|customer_id|store_id}"
+%livy.sql
+select * from products where ${product_id=1}
 ```
+
+And creating dynamic formst programmatically is not feasible in livy interpreter, because ZeppelinContext is not available in livy interpreter.
 
 ## FAQ
 

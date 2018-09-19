@@ -176,7 +176,7 @@ public abstract class BaseLivyInterpreter extends Interpreter {
 
   @Override
   public FormType getFormType() {
-    return FormType.SIMPLE;
+    return FormType.NATIVE;
   }
 
   @Override
