@@ -54,10 +54,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.KeyStore;
 import java.security.Principal;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -80,6 +77,8 @@ public abstract class BaseLivyInterpreter extends Interpreter {
   // keep tracking the mapping between paragraphId and statementId, so that we can cancel the
   // statement after we execute it.
   private ConcurrentHashMap<String, Integer> paragraphId2StmtIdMapping = new ConcurrentHashMap<>();
+  Set<Object> paragraphsToCancel = Collections.newSetFromMap(
+          new ConcurrentHashMap<Object, Boolean>());
   private ConcurrentHashMap<String, Integer> paragraphId2StmtProgressMap = new ConcurrentHashMap<>();
 
   public BaseLivyInterpreter(Properties property) {
@@ -171,21 +170,8 @@ public abstract class BaseLivyInterpreter extends Interpreter {
 
   @Override
   public void cancel(InterpreterContext context) {
-    if (livyVersion.isCancelSupported()) {
-      String paraId = context.getParagraphId();
-      Integer stmtId = paragraphId2StmtIdMapping.get(paraId);
-      try {
-        if (stmtId != null) {
-          cancelStatement(stmtId);
-        }
-      } catch (LivyException e) {
-        LOGGER.error("Fail to cancel statement " + stmtId + " for paragraph " + paraId, e);
-      } finally {
-        paragraphId2StmtIdMapping.remove(paraId);
-      }
-    } else {
-      LOGGER.warn("cancel is not supported for this version of livy: " + livyVersion);
-    }
+    paragraphsToCancel.add(context.getParagraphId());
+    LOGGER.info("Added paragraph " + context.getParagraphId() + " for cancellation.");
   }
 
   @Override
@@ -271,7 +257,7 @@ public abstract class BaseLivyInterpreter extends Interpreter {
         stmtInfo = executeStatement(new ExecuteRequest(code));
       }
       if (paragraphId != null) {
-        paragraphId2StmtIdMapping.put(paragraphId, stmtInfo.id);
+        paragraphId2StmtProgressMap.put(paragraphId, stmtInfo.id);
       }
       // pull the statement status
       while (!stmtInfo.isAvailable()) {
@@ -282,8 +268,12 @@ public abstract class BaseLivyInterpreter extends Interpreter {
           throw new LivyException(e);
         }
         stmtInfo = getStatementInfo(stmtInfo.id);
-        if (paragraphId!=null) {
+        if (paragraphId != null) {
           paragraphId2StmtProgressMap.put(paragraphId, (int) (stmtInfo.progress * 100));
+        }
+        if (paragraphId != null && paragraphsToCancel.contains(paragraphId)) {
+          cancel(stmtInfo.id, paragraphId);
+          return new InterpreterResult(InterpreterResult.Code.ERROR, "Job is cancelled");
         }
       }
       if (appendSessionExpired) {
@@ -294,8 +284,26 @@ public abstract class BaseLivyInterpreter extends Interpreter {
       }
     } finally {
       if (paragraphId != null) {
-        paragraphId2StmtIdMapping.remove(paragraphId);
+        paragraphId2StmtProgressMap.remove(paragraphId);
+        paragraphsToCancel.remove(paragraphId);
       }
+    }
+  }
+
+  private void cancel(int id, String paragraphId) {
+    if (livyVersion.isCancelSupported()) {
+      try {
+        LOGGER.info("Cancelling statement " + id);
+        cancelStatement(id);
+      } catch (LivyException e) {
+        LOGGER.error("Fail to cancel statement " + id + " for paragraph " + paragraphId, e);
+      }
+      finally {
+        paragraphsToCancel.remove(paragraphId);
+      }
+    } else {
+      LOGGER.warn("cancel is not supported for this version of livy: " + livyVersion);
+      paragraphsToCancel.clear();
     }
   }
 
