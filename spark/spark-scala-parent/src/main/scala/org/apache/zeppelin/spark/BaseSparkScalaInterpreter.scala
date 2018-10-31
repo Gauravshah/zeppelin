@@ -221,6 +221,19 @@ abstract class BaseSparkScalaInterpreter(val conf: SparkConf,
       case None =>
     }
 
+    val sparkUiWebUrl = conf.get("zeppelin.spark.uiWebUrl", "")
+    if(!sparkUiWebUrl.isEmpty ){
+      if(sparkUiWebUrl.contains("<application_id>")){
+        sc.getClass.getMethod("applicationId").invoke(sc).asInstanceOf[Option[String]] match {
+          case Some(applicationId) => sparkUrl = sparkUiWebUrl.replace("<application_id>",applicationId)
+          case None =>
+        }
+      }
+      else{
+        sparkUrl = sparkUiWebUrl
+      }
+    }
+
     bind("spark", sparkSession.getClass.getCanonicalName, sparkSession, List("""@transient"""))
     bind("sc", "org.apache.spark.SparkContext", sc, List("""@transient"""))
     bind("sqlContext", "org.apache.spark.sql.SQLContext", sqlContext, List("""@transient"""))
