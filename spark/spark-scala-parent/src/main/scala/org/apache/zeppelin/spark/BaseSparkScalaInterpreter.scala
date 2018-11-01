@@ -224,10 +224,8 @@ abstract class BaseSparkScalaInterpreter(val conf: SparkConf,
     val sparkUiWebUrl = conf.get("zeppelin.spark.uiWebUrl", "")
     if(!sparkUiWebUrl.isEmpty ){
       if(sparkUiWebUrl.contains("<application_id>")){
-        sc.getClass.getMethod("applicationId").invoke(sc).asInstanceOf[Option[String]] match {
-          case Some(applicationId) => sparkUrl = sparkUiWebUrl.replace("<application_id>",applicationId)
-          case None =>
-        }
+        val applicationId = sc.getClass.getMethod("applicationId").invoke(sc).asInstanceOf[String]
+        sparkUrl = sparkUiWebUrl.replace("<application_id>",applicationId)
       }
       else{
         sparkUrl = sparkUiWebUrl
